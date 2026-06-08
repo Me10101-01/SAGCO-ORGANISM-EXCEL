@@ -1,0 +1,481 @@
+import { useState, useMemo } from "react";
+
+// ── C-1602-O-1B CIRCUIT DATA ────────────────────────────────────────────────
+// 57 ISOs | All: LIQUID FURNACE FEED | Mat: B33A-A106B (or B1B/B1D) | 205 PSI | 203°F | Area 11
+// Furnaces A→N (no I) | Each furnace ~3-5 ISOs
+// RBIC clouds extracted from PDF scan | Rope = rope access required
+const ISO_DATA = [
+  { iso:1,  furnace:"A", line:'4"-0-161144A-B1B',     rbic:2, rope:true  },
+  { iso:2,  furnace:"A", line:'3"-0-161144A-B1B',     rbic:2, rope:true  },
+  { iso:3,  furnace:"A", line:'6"-0-161003A-B1B',     rbic:3, rope:true  },
+  { iso:4,  furnace:"B", line:'4"-0-161144B-B1B',     rbic:2, rope:true  },
+  { iso:5,  furnace:"B", line:'3"-0-161144B-B1B',     rbic:2, rope:true  },
+  { iso:6,  furnace:"B", line:'6"-0-161003B-B1B',     rbic:3, rope:true  },
+  { iso:7,  furnace:"C", line:'4"-0-161144CA-B33B',   rbic:2, rope:true  },
+  { iso:8,  furnace:"C", line:'3"-0-161144CB-B33B',   rbic:2, rope:true  },
+  { iso:9,  furnace:"C", line:'6"-0-161003CA-B33B',   rbic:3, rope:true  },
+  { iso:10, furnace:"C", line:'3"-0-161144CC-B33B',   rbic:1, rope:false },
+  { iso:11, furnace:"C", line:'6"-0-161003CB-B33B',   rbic:2, rope:false },
+  { iso:12, furnace:"D", line:'4"-0-161144DA-B33B',   rbic:2, rope:true  },
+  { iso:13, furnace:"D", line:'3"-0-161144DB-B33B',   rbic:2, rope:true  },
+  { iso:14, furnace:"D", line:'6"-0-161003DA-B33B',   rbic:3, rope:true  },
+  { iso:15, furnace:"D", line:'3"-0-161144DC-B33B',   rbic:1, rope:false },
+  { iso:16, furnace:"D", line:'6"-0-161003DB-B33B',   rbic:2, rope:false },
+  { iso:17, furnace:"E", line:'4"-0-161144E-B1B',     rbic:2, rope:true  },
+  { iso:18, furnace:"E", line:'3"-0-161144EA-B33A',   rbic:2, rope:true  },
+  { iso:19, furnace:"E", line:'6"-0-161003EA-B33B',   rbic:3, rope:true  },
+  { iso:20, furnace:"E", line:'3"-0-161144EB-B33A',   rbic:2, rope:false },
+  { iso:21, furnace:"E", line:'6"-0-161003EB-B33B',   rbic:2, rope:false },
+  { iso:22, furnace:"F", line:'4"-0-161144F-B1B',     rbic:2, rope:true  },
+  { iso:23, furnace:"F", line:'3"-0-161144FA-B33A',   rbic:2, rope:true  },
+  { iso:24, furnace:"F", line:'6"-0-161003FA-B33B',   rbic:3, rope:true  },
+  { iso:25, furnace:"F", line:'3"-0-161144FB-B33A',   rbic:2, rope:false },
+  { iso:26, furnace:"F", line:'6"-0-161003FB-B33B',   rbic:2, rope:false },
+  { iso:27, furnace:"G", line:'4"-0-161144G-B1B',     rbic:2, rope:true  },
+  { iso:28, furnace:"G", line:'3"-0-161144GA-B33A',   rbic:2, rope:true  },
+  { iso:29, furnace:"G", line:'6"-0-161003GA-B33B',   rbic:3, rope:true  },
+  { iso:30, furnace:"G", line:'3"-0-161144GB-B33A',   rbic:1, rope:false },
+  { iso:31, furnace:"G", line:'6"-0-161003GB-B33B',   rbic:2, rope:false },
+  { iso:32, furnace:"H", line:'4"-0-161144H-B1B',     rbic:2, rope:true  },
+  { iso:33, furnace:"H", line:'3"-0-161144HA-B33A',   rbic:2, rope:true  },
+  { iso:34, furnace:"H", line:'6"-0-161003HA-B33B',   rbic:3, rope:true  },
+  { iso:35, furnace:"H", line:'3"-0-161144HB-B33A',   rbic:2, rope:false },
+  { iso:36, furnace:"H", line:'6"-0-161003HB-B33B',   rbic:2, rope:false },
+  { iso:37, furnace:"J", line:'4"-0-161144J-B1B',     rbic:2, rope:true  },
+  { iso:38, furnace:"J", line:'3"-0-161144JA-B33A',   rbic:2, rope:true  },
+  { iso:39, furnace:"J", line:'6"-0-161003JA-B33B',   rbic:3, rope:true  },
+  { iso:40, furnace:"J", line:'3"-0-161144JB-B33A',   rbic:1, rope:false },
+  { iso:41, furnace:"J", line:'6"-0-161003JB-B33B',   rbic:2, rope:false },
+  { iso:42, furnace:"K", line:'4"-0-161144K-B1B',     rbic:2, rope:true  },
+  { iso:43, furnace:"K", line:'3"-0-161144KA-B33A',   rbic:2, rope:true  },
+  { iso:44, furnace:"K", line:'6"-0-161003K-B1B',     rbic:3, rope:false },
+  { iso:45, furnace:"L", line:'4"-0-161144L-B1B',     rbic:2, rope:true  },
+  { iso:46, furnace:"L", line:'3"-0-161144LA-B33A',   rbic:2, rope:true  },
+  { iso:47, furnace:"L", line:'6"-0-161003L-B1B',     rbic:3, rope:false },
+  { iso:48, furnace:"M", line:'4"-0-161144M-B1B',     rbic:2, rope:true  },
+  { iso:49, furnace:"M", line:'3"-0-161144MA-B33A',   rbic:2, rope:true  },
+  { iso:50, furnace:"M", line:'6"-0-161003MA-B1D',    rbic:3, rope:false },
+  { iso:51, furnace:"M", line:'3"-0-161144MB-B33A',   rbic:1, rope:false },
+  { iso:52, furnace:"M", line:'6"-0-161003MB-B1D',    rbic:2, rope:false },
+  { iso:53, furnace:"N", line:'4"-0-161144N-B1B',     rbic:2, rope:true  },
+  { iso:54, furnace:"N", line:'3"-0-161144NA-B33A',   rbic:2, rope:true  },
+  { iso:55, furnace:"N", line:'6"-0-161003NA-B1D',    rbic:3, rope:false },
+  { iso:56, furnace:"N", line:'3"-0-161144NB-B33A',   rbic:1, rope:false },
+  { iso:57, furnace:"N", line:'6"-0-161003NB-B1D',    rbic:2, rope:false },
+];
+
+const TOTAL_ISO = 57;
+const TOTAL_RBIC = ISO_DATA.reduce((s, d) => s + d.rbic, 0);
+const TOTAL_ROPE_ISO = ISO_DATA.filter(d => d.rope).length;
+const HRS_REMAIN = 79;
+
+// ── CIRCUIT PHYSICS ──────────────────────────────────────────────────────────
+// L = rope load (uninspected rope ISOs) | C = RBIC charge (inspected clouds)
+// f = 1/(2π√LC) normalized burn-rate rhythm
+function calcResonance(rbicDone, ropeDone) {
+  const L = Math.max(1, TOTAL_ROPE_ISO - ropeDone);   // remaining rope = inductance
+  const C = Math.max(1, TOTAL_RBIC - rbicDone);        // remaining RBIC = capacitance
+  const f = 1 / (2 * Math.PI * Math.sqrt(L * C));
+  const fMax = 1 / (2 * Math.PI * Math.sqrt(1 * 1));
+  return Math.min(1, f / fMax);
+}
+
+const FURNACE_COLORS = {
+  A:"#ef4444", B:"#f97316", C:"#eab308", D:"#84cc16",
+  E:"#22c55e", F:"#14b8a6", G:"#06b6d4", H:"#3b82f6",
+  J:"#8b5cf6", K:"#d946ef", L:"#f43f5e", M:"#fb923c",
+  N:"#a3e635"
+};
+
+function Badge({ color, children }) {
+  return (
+    <span style={{
+      background: color + "22",
+      border: `1px solid ${color}55`,
+      color: color,
+      padding: "1px 6px",
+      borderRadius: 3,
+      fontSize: 11,
+      fontFamily: "monospace",
+      fontWeight: 700,
+      letterSpacing: 1,
+    }}>{children}</span>
+  );
+}
+
+function CloudIcon({ filled, count }) {
+  return (
+    <span style={{ display:"flex", alignItems:"center", gap:3 }}>
+      {Array.from({length: count}).map((_, i) => (
+        <svg key={i} width="14" height="11" viewBox="0 0 14 11" fill="none">
+          <path d="M11 10H3C1.9 10 1 9.1 1 8C1 7.1 1.6 6.4 2.4 6.1C2.1 5.7 2 5.2 2 4.7C2 3.2 3.2 2 4.7 2C5 2 5.3 2.1 5.6 2.2C6.1 1.5 6.9 1 7.9 1C9.4 1 10.6 2.2 10.6 3.7C10.6 3.8 10.6 3.9 10.6 4C11.9 4.2 13 5.2 13 6.5C13 8.4 11.9 10 11 10Z"
+            fill={filled ? "#ef4444" : "none"}
+            stroke={filled ? "#ef4444" : "#666"}
+            strokeWidth="1"
+          />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function ResonanceMeter({ value }) {
+  const pct = Math.round(value * 100);
+  const color = value < 0.3 ? "#ef4444" : value < 0.6 ? "#eab308" : value < 0.85 ? "#22c55e" : "#06b6d4";
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+      <div style={{
+        width: 120, height: 8, background:"#1a1a2e", borderRadius:4,
+        border:"1px solid #333", overflow:"hidden"
+      }}>
+        <div style={{
+          width:`${pct}%`, height:"100%", background:color,
+          borderRadius:4, transition:"width 0.4s ease",
+          boxShadow:`0 0 8px ${color}88`
+        }}/>
+      </div>
+      <span style={{ color, fontSize:12, fontFamily:"monospace", fontWeight:700 }}>
+        f={pct}%
+      </span>
+    </div>
+  );
+}
+
+export default function C1602Tracker() {
+  // State: per-ISO status
+  const [status, setStatus] = useState(() =>
+    Object.fromEntries(ISO_DATA.map(d => [d.iso, {
+      rbicDone: 0,        // clouds completed (0..d.rbic)
+      ropeDone: false,    // rope access complete
+      viDone: false,      // visual inspection complete
+      complete: false,    // fully done
+    }]))
+  );
+  const [filter, setFilter] = useState("all"); // all|rope|rbic|done|pending
+  const [filterFurnace, setFilterFurnace] = useState("all");
+  const [hoursLeft, setHoursLeft] = useState(HRS_REMAIN);
+
+  function toggle(iso, field) {
+    setStatus(s => ({
+      ...s,
+      [iso]: { ...s[iso], [field]: !s[iso][field] }
+    }));
+  }
+  function setRbic(iso, val) {
+    setStatus(s => ({
+      ...s,
+      [iso]: { ...s[iso], rbicDone: val }
+    }));
+  }
+
+  // ── DERIVED METRICS ────────────────────────────────────────────────────────
+  const metrics = useMemo(() => {
+    const rows = ISO_DATA;
+    const totalRbicClouds = rows.reduce((s, d) => s + d.rbic, 0);
+    const doneRbicClouds = rows.reduce((s, d) => s + (status[d.iso].rbicDone), 0);
+    const isoComplete = rows.filter(d => status[d.iso].complete).length;
+    const ropeDone = rows.filter(d => d.rope && status[d.iso].ropeDone).length;
+    const ropeTotal = rows.filter(d => d.rope).length;
+    const viDone = rows.filter(d => status[d.iso].viDone).length;
+
+    const rbicPct = doneRbicClouds / totalRbicClouds;
+    const ropePct = ropeDone / ropeTotal;
+    const isoPct = isoComplete / TOTAL_ISO;
+    const resonance = calcResonance(doneRbicClouds, ropeDone);
+    const burnRate = isoComplete > 0 ? (HRS_REMAIN / Math.max(1, TOTAL_ISO - isoComplete)) : null;
+
+    return {
+      totalRbicClouds, doneRbicClouds, isoComplete, ropeDone, ropeTotal,
+      viDone, rbicPct, ropePct, isoPct, resonance, burnRate
+    };
+  }, [status]);
+
+  // ── FILTERED LIST ─────────────────────────────────────────────────────────
+  const visible = useMemo(() => {
+    return ISO_DATA.filter(d => {
+      const s = status[d.iso];
+      if (filterFurnace !== "all" && d.furnace !== filterFurnace) return false;
+      if (filter === "rope") return d.rope && !s.ropeDone;
+      if (filter === "rbic") return s.rbicDone < d.rbic;
+      if (filter === "done") return s.complete;
+      if (filter === "pending") return !s.complete;
+      return true;
+    });
+  }, [filter, filterFurnace, status]);
+
+  const furnaces = [...new Set(ISO_DATA.map(d => d.furnace))];
+
+  // ── STYLES ────────────────────────────────────────────────────────────────
+  const S = {
+    root: {
+      background:"#0a0a14", minHeight:"100vh", color:"#c8c8d8",
+      fontFamily:"'Courier New', Courier, monospace",
+      padding:"0 0 40px",
+    },
+    header: {
+      background:"linear-gradient(180deg,#0d0d22 0%,#0a0a14 100%)",
+      borderBottom:"1px solid #1e1e3a",
+      padding:"18px 20px 14px",
+    },
+    title: {
+      fontSize:13, fontWeight:700, letterSpacing:3, color:"#6688cc",
+      textTransform:"uppercase", marginBottom:2,
+    },
+    subtitle: {
+      fontSize:20, fontWeight:700, color:"#e0e0ff", letterSpacing:1,
+      marginBottom:12,
+    },
+    metricsRow: {
+      display:"flex", flexWrap:"wrap", gap:10, marginBottom:12,
+    },
+    metricBox: {
+      background:"#0d0d22", border:"1px solid #1e1e3a", borderRadius:6,
+      padding:"8px 14px", minWidth:100,
+    },
+    metricLabel: { fontSize:9, letterSpacing:2, color:"#556", textTransform:"uppercase" },
+    metricVal: { fontSize:22, fontWeight:700, color:"#e0e0ff", lineHeight:1.2 },
+    metricSub: { fontSize:10, color:"#667" },
+    controls: {
+      display:"flex", flexWrap:"wrap", gap:6, padding:"10px 20px",
+      borderBottom:"1px solid #151528",
+    },
+    btn: (active) => ({
+      padding:"4px 10px", borderRadius:3, fontSize:11, fontWeight:700,
+      letterSpacing:1, cursor:"pointer", border:"1px solid",
+      background: active ? "#1e3a6e" : "transparent",
+      borderColor: active ? "#4466aa" : "#2a2a44",
+      color: active ? "#88aaff" : "#667",
+      transition:"all 0.15s",
+    }),
+    table: { width:"100%", borderCollapse:"collapse" },
+    th: {
+      fontSize:9, letterSpacing:2, color:"#446", textTransform:"uppercase",
+      padding:"6px 10px", textAlign:"left", borderBottom:"1px solid #151528",
+      position:"sticky", top:0, background:"#0a0a14", zIndex:10,
+    },
+    tr: (done) => ({
+      borderBottom:"1px solid #10101c",
+      background: done ? "#0a0f0a" : "transparent",
+      opacity: done ? 0.55 : 1,
+    }),
+    td: { padding:"7px 10px", fontSize:12, verticalAlign:"middle" },
+    checkBtn: (active, color) => ({
+      width:20, height:20, borderRadius:3, border:`1px solid ${active ? color : "#2a2a44"}`,
+      background: active ? color+"33" : "transparent", cursor:"pointer",
+      display:"inline-flex", alignItems:"center", justifyContent:"center",
+      fontSize:11, color: active ? color : "#444",
+      transition:"all 0.15s",
+    }),
+  };
+
+  const { totalRbicClouds, doneRbicClouds, isoComplete, ropeDone, ropeTotal,
+    viDone, rbicPct, ropePct, isoPct, resonance, burnRate } = metrics;
+
+  return (
+    <div style={S.root}>
+      {/* ── HEADER ── */}
+      <div style={S.header}>
+        <div style={S.title}>LyondellBasell · Area 11 · CUI Inspection</div>
+        <div style={S.subtitle}>C-1602-O-1B  ·  Cracking Furnace Feed  ·  205 PSI / 203°F</div>
+
+        <div style={S.metricsRow}>
+          <div style={S.metricBox}>
+            <div style={S.metricLabel}>ISOs Complete</div>
+            <div style={S.metricVal}>{isoComplete}<span style={{fontSize:14,color:"#446"}}>/{TOTAL_ISO}</span></div>
+            <div style={S.metricSub}>{(isoPct*100).toFixed(0)}%</div>
+          </div>
+          <div style={S.metricBox}>
+            <div style={S.metricLabel}>RBIC Clouds</div>
+            <div style={S.metricVal}>{doneRbicClouds}<span style={{fontSize:14,color:"#446"}}>/{totalRbicClouds}</span></div>
+            <div style={S.metricSub}>{(rbicPct*100).toFixed(0)}% charged</div>
+          </div>
+          <div style={S.metricBox}>
+            <div style={S.metricLabel}>Rope Access</div>
+            <div style={S.metricVal}>{ropeDone}<span style={{fontSize:14,color:"#446"}}>/{ropeTotal}</span></div>
+            <div style={S.metricSub}>{(ropePct*100).toFixed(0)}% done</div>
+          </div>
+          <div style={S.metricBox}>
+            <div style={S.metricLabel}>Hrs Remaining</div>
+            <div style={{...S.metricVal, color: hoursLeft < 20 ? "#ef4444" : "#e0e0ff"}}>
+              {hoursLeft}
+            </div>
+            <div style={{...S.metricSub, display:"flex", gap:4, alignItems:"center"}}>
+              <button onClick={() => setHoursLeft(h => Math.max(0,h-1))}
+                style={{...S.checkBtn(false,"#888"), width:16, height:16}}>-</button>
+              hrs
+              <button onClick={() => setHoursLeft(h => h+1)}
+                style={{...S.checkBtn(false,"#888"), width:16, height:16}}>+</button>
+            </div>
+          </div>
+          <div style={{...S.metricBox, minWidth:180}}>
+            <div style={S.metricLabel}>Circuit Resonance  f=1/(2π√LC)</div>
+            <div style={{marginTop:6}}>
+              <ResonanceMeter value={resonance} />
+            </div>
+            <div style={{...S.metricSub, marginTop:3}}>
+              L={ropeTotal-ropeDone} (rope) · C={totalRbicClouds-doneRbicClouds} (RBIC)
+            </div>
+          </div>
+          {burnRate && (
+            <div style={S.metricBox}>
+              <div style={S.metricLabel}>Hrs/ISO Remain</div>
+              <div style={{...S.metricVal, fontSize:18}}>{burnRate.toFixed(1)}</div>
+              <div style={S.metricSub}>burn rate</div>
+            </div>
+          )}
+        </div>
+
+        {/* Branch progress bars */}
+        <div style={{display:"flex", gap:16, flexWrap:"wrap"}}>
+          {[
+            {label:"RBIC", val:rbicPct, color:"#ef4444"},
+            {label:"Rope", val:ropePct, color:"#3b82f6"},
+            {label:"ISO Complete", val:isoPct, color:"#22c55e"},
+          ].map(({label, val, color}) => (
+            <div key={label} style={{display:"flex", alignItems:"center", gap:8}}>
+              <span style={{fontSize:10, letterSpacing:1, color:"#446", textTransform:"uppercase", width:90}}>{label}</span>
+              <div style={{width:120, height:5, background:"#151528", borderRadius:3, overflow:"hidden"}}>
+                <div style={{width:`${val*100}%`, height:"100%", background:color, transition:"width 0.4s"}}/>
+              </div>
+              <span style={{fontSize:11, color, fontWeight:700, width:36}}>{(val*100).toFixed(0)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── CONTROLS ── */}
+      <div style={S.controls}>
+        <span style={{fontSize:10, color:"#446", letterSpacing:1, alignSelf:"center"}}>FILTER:</span>
+        {[
+          {key:"all", label:"ALL 57"},
+          {key:"pending", label:"PENDING"},
+          {key:"rope", label:"ROPE OPEN"},
+          {key:"rbic", label:"RBIC OPEN"},
+          {key:"done", label:"DONE"},
+        ].map(f => (
+          <button key={f.key} style={S.btn(filter===f.key)} onClick={() => setFilter(f.key)}>
+            {f.label}
+          </button>
+        ))}
+        <span style={{fontSize:10, color:"#446", letterSpacing:1, alignSelf:"center", marginLeft:8}}>FURNACE:</span>
+        <button style={S.btn(filterFurnace==="all")} onClick={() => setFilterFurnace("all")}>ALL</button>
+        {furnaces.map(f => (
+          <button key={f} style={{...S.btn(filterFurnace===f), borderColor: filterFurnace===f ? FURNACE_COLORS[f]+"88" : "#2a2a44",
+            color: filterFurnace===f ? FURNACE_COLORS[f] : "#667",
+            background: filterFurnace===f ? FURNACE_COLORS[f]+"18" : "transparent",
+          }}
+            onClick={() => setFilterFurnace(filterFurnace===f ? "all" : f)}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TABLE ── */}
+      <div style={{overflowX:"auto", padding:"0 0"}}>
+        <table style={S.table}>
+          <thead>
+            <tr>
+              {["ISO","FUR","LINE NUMBER","RBIC CLOUDS","ROPE","VI","COMPLETE"].map(h => (
+                <th key={h} style={S.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(d => {
+              const s = status[d.iso];
+              const fColor = FURNACE_COLORS[d.furnace] || "#888";
+              return (
+                <tr key={d.iso} style={S.tr(s.complete)}>
+                  <td style={{...S.td, color:"#667", fontSize:11}}>
+                    {String(d.iso).padStart(2,"0")}
+                  </td>
+                  <td style={S.td}>
+                    <Badge color={fColor}>{d.furnace}</Badge>
+                  </td>
+                  <td style={{...S.td, fontSize:11, fontFamily:"monospace", color:"#8899bb"}}>
+                    {d.line}
+                  </td>
+                  <td style={S.td}>
+                    <div style={{display:"flex", alignItems:"center", gap:6}}>
+                      {/* Cloud increment buttons */}
+                      <button
+                        onClick={() => setRbic(d.iso, Math.max(0, s.rbicDone - 1))}
+                        style={{...S.checkBtn(false,"#ef4444"), fontSize:14, lineHeight:1}}>−</button>
+                      <span style={{display:"flex", gap:2, alignItems:"center"}}>
+                        {Array.from({length: d.rbic}).map((_, i) => (
+                          <span key={i} style={{
+                            fontSize:16, cursor:"pointer",
+                            filter: i < s.rbicDone ? "none" : "grayscale(1) opacity(0.3)",
+                            transition:"filter 0.2s",
+                          }} onClick={() => setRbic(d.iso, i < s.rbicDone ? i : i+1)}>
+                            ☁
+                          </span>
+                        ))}
+                      </span>
+                      <button
+                        onClick={() => setRbic(d.iso, Math.min(d.rbic, s.rbicDone + 1))}
+                        style={{...S.checkBtn(false,"#ef4444"), fontSize:14, lineHeight:1}}>+</button>
+                      <span style={{fontSize:10, color: s.rbicDone===d.rbic ? "#22c55e" : "#556"}}>
+                        {s.rbicDone}/{d.rbic}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={S.td}>
+                    {d.rope ? (
+                      <button
+                        style={S.checkBtn(s.ropeDone, "#3b82f6")}
+                        onClick={() => toggle(d.iso, "ropeDone")}
+                        title="Toggle rope access done">
+                        {s.ropeDone ? "✓" : "⊘"}
+                      </button>
+                    ) : (
+                      <span style={{fontSize:10, color:"#333"}}>—</span>
+                    )}
+                  </td>
+                  <td style={S.td}>
+                    <button
+                      style={S.checkBtn(s.viDone, "#eab308")}
+                      onClick={() => toggle(d.iso, "viDone")}
+                      title="Toggle visual inspection done">
+                      {s.viDone ? "✓" : "○"}
+                    </button>
+                  </td>
+                  <td style={S.td}>
+                    <button
+                      style={{
+                        ...S.checkBtn(s.complete, "#22c55e"),
+                        width:26, height:20, borderRadius:3,
+                        fontSize:10, letterSpacing:1,
+                      }}
+                      onClick={() => toggle(d.iso, "complete")}
+                      title="Mark ISO complete">
+                      {s.complete ? "DONE" : "○"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{...S.td, textAlign:"center", color:"#22c55e", padding:30, fontSize:13}}>
+                  ✓ ALL {filter.toUpperCase()} CLEAR
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── FOOTER ── */}
+      <div style={{padding:"12px 20px", borderTop:"1px solid #151528", marginTop:8,
+        fontSize:10, color:"#334", letterSpacing:1, display:"flex", gap:20, flexWrap:"wrap"}}>
+        <span>CIRCUIT: C-1602-O-1B</span>
+        <span>205 PSI · 203°F · AREA 11</span>
+        <span>MAT: B33A-A106B / B1B / B1D</span>
+        <span>PROCESS: LIQUID FURNACE FEED</span>
+        <span>FURNACES: A→N (no I)</span>
+        <span style={{marginLeft:"auto", color:"#224"}}>SAGCO-CUI-KERNEL v0.3 · C1602</span>
+      </div>
+    </div>
+  );
+}
