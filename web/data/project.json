@@ -1,0 +1,14 @@
+{
+  "project": "SAGCO-C1602-O-1B",
+  "status": "GEN001",
+  "isos_total": 57,
+  "isos_complete": 12,
+  "rbic_clouds_total": 116,
+  "rbic_clouds_charged": 43,
+  "eru_verified": 40,
+  "eru_total": 47,
+  "hours_used": 618.3,
+  "hours_remaining": 461.7,
+  "risk": "MEDIUM",
+  "next_brick": "Dashboard Skeleton"
+}
